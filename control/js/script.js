@@ -69,8 +69,26 @@ var fh = {
   }
 };
 
+var showStats = function() {
+  var stats;
+  $.getJSON("./stats.json", function(data) {
+    if(data != null && data.length>0) {
+      stats = "<p>Connected devices: "+data.length+"</p>";
+      $.each(data, function(i,stat){
+       i++;
+       stats += "<p>Device "+i+": <ul><li>user agent "+stat.userAgent+"</li><li>"+stat.platform+"</li></ul></p>";
+      });
+      $(".stats").html(stats);
+    }
+  })
+  .error(function(jqXHR, textStatus, errorThrown) {
+        console.log("error " + textStatus + " " + errorThrown);
+  });
+};
+
 $(function(){
   previewURL();
   $("#preview-url").html(remotePreviewURL());
   fh.init();
+  showStats();
 });
