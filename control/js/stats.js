@@ -26,9 +26,7 @@ var getSessionId = function() {
   set cookie 30minute expiry. store 
   */
   var sessionid = readCookie('sess');
-  console.log(sessionid);
   if(sessionid === false){
-    console.log("doing stuff");
     $.ajax({
       url: './control/session.php',
       cache: false,
@@ -36,7 +34,6 @@ var getSessionId = function() {
       dataType: 'text',
       async: false,
       success: function (data) {
-        console.log(data + " data");
         sessionid = $.trim(data);
         writeCookie('sess',sessionid);
       }
@@ -48,13 +45,15 @@ var getSessionId = function() {
 $(window).load(function(){
   
   var sessionid = getSessionId();
-  console.log(sessionid+" on load");
   if(sessionid) {
+    var date;
+    date = new Date();
+    date.setTime(date.getTime()+(30*60*1000));
     $.ajax({
       url: './control/stats.php',
       cache: false,
       dataType: 'html',
-      data: "id="+sessionid+"&userAgent="+navigator.userAgent+"&platform="+navigator.platform,
+      data: "id="+sessionid+"&userAgent="+navigator.userAgent+"&platform="+navigator.platform+"&expires="+date.toGMTString(),
       type: 'post'
     });
   }

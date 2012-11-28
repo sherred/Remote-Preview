@@ -1,94 +1,117 @@
-var remotePreviewURL = function(){
-  var pathArray = window.location.pathname.split( '/' );
-  var url = window.location.protocol + "//" + window.location.host + "/" + pathArray[pathArray.length - 3];
-  return url;
-};
-
-var isUrl = function(url){
-  var regexp = /(ftp|http|https):\/\/(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/;
-  return regexp.test(url);
-}
-
-var previewURL = function(){
-  $.ajax({
-    url: '../url',
-    cache: false,
-    timeout: 100000,
-    dataType: 'text',
-
-    success: function (data) {
-      // Remove whitespace from the beginning and end
-      var newUrl = $.trim(data);
-      if(isUrl(newUrl)) $("#url").val(newUrl);
+/*global jQuery */
+(function ($) {
+  /**
+   * Returns full url to the parent directory.
+   */
+  function getRemotePreviewURL() {
+    var path = window.location.pathname;
+    // Account for different web server configurations.
+    // Normalise to without trailing slash.
+    if (path.slice(-1) === '/') {
+      path = path.slice(0, -1);
     }
-  });
-};
+    return window.location.protocol + '//' + window.location.host + path.split('/').slice(0, -1).join('/');
+  }
 
-var fh = {
-  error: '',
-  init: function(){
-    $("#url-form").submit(function(e) {
-      e.preventDefault();
-      fh.resetForm();
-      if(!fh.validate()) {
-        fh.showError();
-        return false;
-      } else {
-        $.ajax({
-          url: './update.php',
-          data: $('#url-form').serialize() + '&action=send',
-          type: 'post',
-          cache: false,
-          dataType: 'html',
-          success: function (data) {
-            $('.form-feedback').addClass('form-success').html(data).fadeIn(200);
-          }
-        });
+  function isUrl(url) {
+    var regexp = /(ftp|http|https):\/\/(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/;
+    return regexp.test(url);
+  }
+
+  function initUrlValue() {
+    $.ajax({
+      url: '../url',
+      cache: false,
+      timeout: 100000,
+      dataType: 'text',
+
+      success: function (data) {
+        // Remove whitespace from the beginning and end
+        var newUrl = $.trim(data);
+        if (isUrl(newUrl)) {
+          $('#url').val(newUrl);
+        }
       }
     });
-  },
-  resetForm: function(){
-    $('.form-feedback').fadeOut(200).removeClass('form-success').removeClass('form-error').html();
-    fh.error = '';
-  },
-  validate: function(){
-    if(!$("#url").val().length>0) {
-    fh.error = 'Looks like you forgot to enter a URL...';
-    return false;
   }
 
-  if(!isUrl($("#url").val())) {
-    fh.error = "Hmmm, that doesn't look like a URL!";
-    return false;
-  }
+  //modify this so settimeout every 5 seconds, loader gif. checkstats.php returns the html and checks expires
+  //in stats.json, if >= of now delete from stats.json, then build html response.
+  function updateStats() {
+    $(".stats").html('<img src="./loading.gif" title="loading">');
+    $.ajax({
+      url: './checkstats.php',
+      cache: false,
+      timeout: 100000,
+      dataType: 'text',
+      success: function (data) {
+        $(".stats").html(data);
+        setTimeout(updateStats, 10000);
+      },
+      error: function (jqXHR, textStatus, errorThrown) {
+        setTimeout(updateStats, 5000);
+        console.log('error: ' + textStatus + ', ' + errorThrown);
+      }
 
-  return true;
-  },
-  showError: function(){
-    $('.form-feedback').addClass('form-error').html(fh.error).fadeIn(200);
-  }
-};
+    });
+  };
 
-var showStats = function() {
-  var stats;
-  $.getJSON("./stats.json", function(data) {
-    if(data != null && data.length>0) {
-      stats = "<p>Connected devices: "+data.length+"</p>";
-      $.each(data, function(i,stat){
-       i++;
-       stats += "<p>Device "+i+": <ul><li>user agent "+stat.userAgent+"</li><li>"+stat.platform+"</li></ul></p>";
+  var fh = {
+    init: function () {
+      $('#preview-url').html(getRemotePreviewURL());
+
+      initUrlValue();
+
+      updateStats();
+
+      $('#url-form').off('submit').on('submit', function (e) {
+        e.preventDefault();
+        fh.resetForm();
+        if (fh.validateForm()) {
+          $.ajax({
+            url: './update.php',
+            data: $(this).serialize(),
+            type: 'post',
+            cache: false,
+            dataType: 'text',
+            success: function (data) {
+              fh.msgSuccess(data);
+            },
+            error: function (jqXhr) {
+              fh.msgError(jqXhr.responseText || 'Error: Request failed.');
+            }
+          });
+        }
       });
-      $(".stats").html(stats);
-    }
-  })
-  .error(function(jqXHR, textStatus, errorThrown) {
-        console.log("error " + textStatus + " " + errorThrown);
-  });
-};
+    },
+    resetForm: function () {
+      fh.clearMsg();
+    },
+    validateForm: function () {
+      var url = $('#url').val();
+      if (!url) {
+        fh.msgError('Looks like you forgot to enter a URL...');
+        return false;
+      }
 
-$(function(){
-  previewURL();
-  $("#preview-url").html(remotePreviewURL());
-  fh.init();
-  showStats();
-});
+      if (!isUrl(url)) {
+        fh.msgError("Hmmm, that doesn't look like a URL!");
+        return false;
+      }
+
+      return true;
+    },
+    msgError: function (message) {
+      $('.form-feedback').removeClass('form-success').addClass('form-error').text(message).fadeIn(200);
+    },
+    msgSuccess: function (message) {
+      $('.form-feedback').removeClass('form-error').addClass('form-success').text(message).fadeIn(200);
+    },
+    clearMsg: function () {
+      $('.form-feedback').hide().removeClass('form-success form-error').empty();
+    }
+  };
+
+  $(fh.init);
+
+}(jQuery));
